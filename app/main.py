@@ -6,7 +6,8 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from app.config import settings
-from app.schemas import NearbyCourier, PositionIn, PositionOut
+from app.events import detect_events
+from app.schemas import AssignIn, EventOut, NearbyCourier, OrderOut, PositionIn, PositionOut
 
 POSITION_COLUMNS = """
     id, courier_id,
@@ -37,18 +38,21 @@ async def health():
 @app.post("/positions", response_model=PositionOut, status_code=201)
 async def create_position(pos: PositionIn):
     async with app.state.pool.connection() as conn:
-        try:
-            cur = await conn.execute(
-                f"""
-                INSERT INTO courier_positions (courier_id, position)
-                VALUES (%s, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography)
-                RETURNING {POSITION_COLUMNS}
-                """,
-                (pos.courier_id, pos.lon, pos.lat),
-            )
-        except ForeignKeyViolation:
-            raise HTTPException(status_code=404, detail="Courier not found")
-        return await cur.fetchone()
+        async with conn.transaction():
+            try:
+                cur = await conn.execute(
+                    f"""
+                    INSERT INTO courier_positions (courier_id, position)
+                    VALUES (%s, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography)
+                    RETURNING {POSITION_COLUMNS}
+                    """,
+                    (pos.courier_id, pos.lon, pos.lat),
+                )
+            except ForeignKeyViolation:
+                raise HTTPException(status_code=404, detail="Courier not found")
+            row = await cur.fetchone()
+            await detect_events(conn, pos.courier_id, row["id"])
+        return row
 
 
 @app.get("/couriers/{courier_id}/position", response_model=PositionOut)
@@ -125,3 +129,41 @@ async def nearest_courier(order_id: int):
             detail = "No available courier" if exists else "Order not found"
             raise HTTPException(status_code=404, detail=detail)
         return row
+
+
+@app.post("/orders/{order_id}/assign", response_model=OrderOut)
+async def assign_order(order_id: int, body: AssignIn):
+    async with app.state.pool.connection() as conn:
+        async with conn.transaction():
+            try:
+                cur = await conn.execute(
+                    """
+                    UPDATE orders SET courier_id = %s, status = 'assigned'
+                    WHERE id = %s AND status = 'pending'
+                    RETURNING id, status, courier_id
+                    """,
+                    (body.courier_id, order_id),
+                )
+            except ForeignKeyViolation:
+                raise HTTPException(status_code=404, detail="Courier not found")
+            row = await cur.fetchone()
+            if row is None:
+                raise HTTPException(status_code=409, detail="Order not found or not pending")
+            await conn.execute("UPDATE couriers SET status = 'busy' WHERE id = %s", (body.courier_id,))
+        return row
+
+
+@app.get("/events", response_model=list[EventOut])
+async def list_events(courier_id: int | None = None, limit: int = Query(50, ge=1, le=500)):
+    async with app.state.pool.connection() as conn:
+        cur = await conn.execute(
+            """
+            SELECT e.id, e.courier_id, e.event_type, e.zone_id, z.name AS zone_name,
+                   e.order_id, e.occurred_at
+            FROM events e LEFT JOIN zones z ON z.id = e.zone_id
+            WHERE (%s::int IS NULL OR e.courier_id = %s)
+            ORDER BY e.id DESC LIMIT %s
+            """,
+            (courier_id, courier_id, limit),
+        )
+        return await cur.fetchall()

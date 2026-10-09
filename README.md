@@ -23,6 +23,8 @@ Tables are created automatically from `db/*.sql` the first time the database sta
 - `couriers`: delivery people and their status.
 - `orders`: delivery destinations (`GEOGRAPHY(Point, 4326)`).
 - `courier_positions`: append-only position events, indexed with GiST.
+- `zones`: geofences as polygons.
+- `events`: `entered_zone`, `left_zone` and `arrived_at_destination`, detected on every new position.
 
 To recreate the database from scratch (this deletes all data):
 ```
@@ -44,6 +46,8 @@ Interactive docs: http://localhost:8000/docs
 | GET | `/couriers/{id}/position` | Latest position of a courier |
 | GET | `/couriers/nearby?lat=&lon=&radius=` | Couriers within `radius` meters (default 2000), nearest first |
 | GET | `/orders/{id}/nearest-courier` | Nearest available courier to an order |
+| POST | `/orders/{id}/assign` | Assign a pending order to a courier `{courier_id}` |
+| GET | `/events?courier_id=&limit=` | Latest events (zone enter/leave, arrival at destination) |
 | GET | `/health` | Health check |
 
 The custom `--loop` is needed on Windows because psycopg async does not work with the default event loop.
