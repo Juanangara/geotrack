@@ -17,3 +17,15 @@ The database listens on port 5434 (set in `.env`).
 ```
 docker compose exec db psql -U geotrack -d geotrack -c "SELECT PostGIS_Version();"
 ```
+
+## Database schema
+Tables are created automatically from `db/*.sql` the first time the database starts:
+- `couriers`: delivery people and their status.
+- `orders`: delivery destinations (`GEOGRAPHY(Point, 4326)`).
+- `courier_positions`: append-only position events, indexed with GiST.
+
+To recreate the database from scratch (this deletes all data):
+```
+docker compose down -v
+docker compose up -d
+```
