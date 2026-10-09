@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>geotrack</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="map"></div>
+  <aside>
+    <h1>geotrack <span id="status" class="dot off" title="disconnected"></span></h1>
+
+    <section>
+      <h2>Couriers</h2>
+      <ul id="couriers"></ul>
+    </section>
+
+    <section>
+      <h2>Search by radius</h2>
+      <p class="hint">Click the map to find couriers around that point.</p>
+      <label>Radius (m) <input id="radius" type="number" value="2000" min="100" max="50000" step="100"></label>
+      <button id="clear" type="button">Clear</button>
+      <ul id="nearby"></ul>
+    </section>
+
+    <section>
+      <h2>Events</h2>
+      <ul id="events"></ul>
+    </section>
+  </aside>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>

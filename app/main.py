@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi.encoders import jsonable_encoder
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.encoders import jsonable_encoder
+from fastapi.staticfiles import StaticFiles
 from psycopg.errors import ForeignKeyViolation
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
@@ -156,7 +158,8 @@ async def assign_order(order_id: int, body: AssignIn):
             if row is None:
                 raise HTTPException(status_code=409, detail="Order not found or not pending")
             await conn.execute("UPDATE couriers SET status = 'busy' WHERE id = %s", (body.courier_id,))
-        return row
+    await manager.broadcast({"type": "courier_status", "courier_id": body.courier_id, "status": "busy"})
+    return row
 
 
 @app.get("/events", response_model=list[EventOut])
@@ -200,3 +203,24 @@ async def live(ws: WebSocket):
         pass
     finally:
         manager.disconnect(ws)
+
+
+@app.get("/zones")
+async def zones():
+    """Geofences as a GeoJSON FeatureCollection (coordinates are [lon, lat])."""
+    async with app.state.pool.connection() as conn:
+        cur = await conn.execute(
+            "SELECT id, name, ST_AsGeoJSON(area::geometry)::json AS geometry FROM zones ORDER BY id"
+        )
+        rows = await cur.fetchall()
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {"type": "Feature", "properties": {"id": r["id"], "name": r["name"]}, "geometry": r["geometry"]}
+            for r in rows
+        ],
+    }
+
+
+# Must be last: it serves the web/ folder at "/" and would shadow later routes
+app.mount("/", StaticFiles(directory=Path(__file__).parent.parent / "web", html=True), name="web")

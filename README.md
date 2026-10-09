@@ -48,6 +48,7 @@ Interactive docs: http://localhost:8000/docs
 | GET | `/orders/{id}/nearest-courier` | Nearest available courier to an order |
 | POST | `/orders/{id}/assign` | Assign a pending order to a courier `{courier_id}` |
 | GET | `/events?courier_id=&limit=` | Latest events (zone enter/leave, arrival at destination) |
+| GET | `/zones` | Geofences as GeoJSON |
 | GET | `/health` | Health check |
 
 The custom `--loop` is needed on Windows because psycopg async does not work with the default event loop.
@@ -67,3 +68,11 @@ Connect to `ws://localhost:8000/ws`. The server first sends the current state, t
 {"type": "event", "event_type", "courier_id", "zone_name", "order_id", ...}
 ```
 Broadcasting is in-memory, so it works with a single API process.
+
+## Live map
+With the database and the API running, open http://localhost:8000/ . It shows the zones, the couriers moving in real time, an event feed, and a radius search (click the map).
+
+To see visible movement, run the simulator faster than walking speed:
+```
+.venv/Scripts/python simulator/simulate.py --speed 60
+```
