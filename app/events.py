@@ -17,9 +17,12 @@ async def _zones_covering(conn, position_id: int) -> set[int]:
 async def _insert_event(conn, courier_id, event_type, zone_id=None, order_id=None) -> dict:
     cur = await conn.execute(
         """
-        INSERT INTO events (courier_id, event_type, zone_id, order_id)
-        VALUES (%s, %s, %s, %s)
-        RETURNING id, courier_id, event_type, zone_id, order_id, occurred_at
+        WITH e AS (
+            INSERT INTO events (courier_id, event_type, zone_id, order_id)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, courier_id, event_type, zone_id, order_id, occurred_at
+        )
+        SELECT e.*, z.name AS zone_name FROM e LEFT JOIN zones z ON z.id = e.zone_id
         """,
         (courier_id, event_type, zone_id, order_id),
     )

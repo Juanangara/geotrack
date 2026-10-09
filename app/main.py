@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi.encoders import jsonable_encoder
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from psycopg.errors import ForeignKeyViolation
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from app.config import settings
 from app.events import detect_events
+from app.realtime import manager
 from app.schemas import AssignIn, EventOut, NearbyCourier, OrderOut, PositionIn, PositionOut
 
 POSITION_COLUMNS = """
@@ -51,8 +53,12 @@ async def create_position(pos: PositionIn):
             except ForeignKeyViolation:
                 raise HTTPException(status_code=404, detail="Courier not found")
             row = await cur.fetchone()
-            await detect_events(conn, pos.courier_id, row["id"])
-        return row
+            events = await detect_events(conn, pos.courier_id, row["id"])
+    # Broadcast only after the transaction has been committed
+    await manager.broadcast({"type": "position", **row})
+    for event in events:
+        await manager.broadcast({"type": "event", **event})
+    return row
 
 
 @app.get("/couriers/{courier_id}/position", response_model=PositionOut)
@@ -167,3 +173,30 @@ async def list_events(courier_id: int | None = None, limit: int = Query(50, ge=1
             (courier_id, courier_id, limit),
         )
         return await cur.fetchall()
+
+
+SNAPSHOT_QUERY = f"""
+    SELECT c.id AS courier_id, c.name, c.status,
+           ST_Y(p.position::geometry) AS lat,
+           ST_X(p.position::geometry) AS lon,
+           p.recorded_at
+    FROM couriers c {LATEST_POSITION}
+    ORDER BY c.id
+"""
+
+
+@app.websocket("/ws")
+async def live(ws: WebSocket):
+    await manager.connect(ws)
+    try:
+        # Current state first, then live updates arrive through manager.broadcast
+        async with app.state.pool.connection() as conn:
+            cur = await conn.execute(SNAPSHOT_QUERY)
+            couriers = await cur.fetchall()
+        await ws.send_json(jsonable_encoder({"type": "snapshot", "couriers": couriers}))
+        while True:
+            await ws.receive_text()  # keeps the connection open; raises on disconnect
+    except WebSocketDisconnect:
+        pass
+    finally:
+        manager.disconnect(ws)

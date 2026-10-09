@@ -58,3 +58,12 @@ With the database and the API running:
 .venv/Scripts/python simulator/simulate.py
 ```
 Options: `--couriers 1,2,3`, `--interval 1` (seconds), `--speed 8` (m/s), `--ticks N` (stop after N pings per courier), `--api URL`. Stop with Ctrl+C.
+
+## Live updates (WebSocket)
+Connect to `ws://localhost:8000/ws`. The server first sends the current state, then pushes every change:
+```
+{"type": "snapshot", "couriers": [{"courier_id", "name", "status", "lat", "lon", "recorded_at"}, ...]}
+{"type": "position", "courier_id", "lat", "lon", "recorded_at", ...}
+{"type": "event", "event_type", "courier_id", "zone_name", "order_id", ...}
+```
+Broadcasting is in-memory, so it works with a single API process.
