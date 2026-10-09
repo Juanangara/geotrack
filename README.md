@@ -45,3 +45,10 @@ Interactive docs: http://localhost:8000/docs
 | GET | `/health` | Health check |
 
 The custom `--loop` is needed on Windows because psycopg async does not work with the default event loop.
+
+## Run the simulator
+With the database and the API running:
+```
+.venv/Scripts/python simulator/simulate.py
+```
+Options: `--couriers 1,2,3`, `--interval 1` (seconds), `--speed 8` (m/s), `--ticks N` (stop after N pings per courier), `--api URL`. Stop with Ctrl+C.
