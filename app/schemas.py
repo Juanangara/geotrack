@@ -15,3 +15,13 @@ class PositionOut(BaseModel):
     lat: float
     lon: float
     recorded_at: datetime
+
+
+class NearbyCourier(BaseModel):
+    courier_id: int
+    name: str
+    status: str
+    lat: float
+    lon: float
+    distance_m: float
+    recorded_at: datetime

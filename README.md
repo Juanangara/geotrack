@@ -42,6 +42,8 @@ Interactive docs: http://localhost:8000/docs
 |---|---|---|
 | POST | `/positions` | Store a courier position `{courier_id, lat, lon}` |
 | GET | `/couriers/{id}/position` | Latest position of a courier |
+| GET | `/couriers/nearby?lat=&lon=&radius=` | Couriers within `radius` meters (default 2000), nearest first |
+| GET | `/orders/{id}/nearest-courier` | Nearest available courier to an order |
 | GET | `/health` | Health check |
 
 The custom `--loop` is needed on Windows because psycopg async does not work with the default event loop.
